@@ -4,7 +4,7 @@ matplotlib
 nptyping
 panda3d
 pandas
-sklearn
+scikit-learn
 torchvision
 memory_profiler
 seaborn
