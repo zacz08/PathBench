@@ -52,11 +52,11 @@ Note, screenshots are placed in `data/screenshots/`.
 Example usage:
 ```bash
 # Run trainer
-python3 src/run_trainer.py --num_maps 10000 --full-train --model LSTM
+python src/run_trainer.py --num_maps 10000 --full_train --model OnlineLSTM
 # Run generator
-python3 src/main.py --generator --num-maps 100 --generator-type house --dims 3
+python src/main.py --generator --num-maps 100 --generator-type house --dims 3
 # Run analyzer
-python3 src/main.py --analyzer --algorithms "A*" Dijkstra VIN --include-all-builtin-maps
+python src/main.py --analyzer --algorithms "A*" Dijkstra VIN --include-all-builtin-maps
 ```
 Note `A*` is in quotes to prevent glob expansion by the shell.
 

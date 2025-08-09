@@ -92,7 +92,8 @@ class EvaluationResults:
         }
 
     def batch_finish(self, loss: torch.Tensor, model_out: torch.Tensor, labels_out: torch.Tensor) -> None:
-        self.__epoch_acc["loss"] += loss
+        # self.__epoch_acc["loss"] += loss
+        self.__epoch_acc["loss"] += float(loss.detach().cpu())
 
         if isinstance(self.__model.config["loss"], torch.nn.modules.loss.CrossEntropyLoss):
             _, model_out_classes = torch.max(model_out, 1)
@@ -460,3 +461,9 @@ class MLModel(torch.nn.Module):
         self._services.resources.model_dir.save(self.save_name(), self)
         self._services.debug.write("Saved model as " + self.save_name(), DebugLevel.BASIC,
                                    streams=[self.__training_stream])
+
+
+def to_numpy(x):
+    if isinstance(x, torch.Tensor):
+        return x.detach().cpu().numpy()
+    return x
