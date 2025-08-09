@@ -9,6 +9,12 @@ PathBench is a motion planning platform used to develop, assess, compare and vis
 
 The following installation and run instructions have been used for running PathBench on **Ubuntu 18 and 20**.
 
+### Create Environment
+
+```bash
+conda create -n path python=3.8 -y
+```
+
 ### Installing dependencies
 
 ```bash
