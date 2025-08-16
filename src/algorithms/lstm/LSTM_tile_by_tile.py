@@ -162,6 +162,12 @@ class OnlineLSTM(Algorithm):
 
         it = 0
         while it < self._max_it:
+
+            ########## 动态环境推进（新增）#########
+            if hasattr(self._get_grid(), "advance"):
+                self._get_grid().advance(1)
+            #######################################
+
             # goal reached if radius intersects
             if self._get_grid().is_agent_in_goal_radius():
                 self.move_agent(self._get_grid().goal.position)

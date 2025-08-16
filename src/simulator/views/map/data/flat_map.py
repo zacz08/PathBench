@@ -240,10 +240,17 @@ class FlatMap(MapData):
 
     def center(self) -> None:
         world = self.root.get_parent()
-        (_, _, z1), (_, _, z2) = self.root.get_tight_bounds()
-        self.root.set_pos(-self.logical_w / 2,
-                          -self.logical_h / 2,
-                          world.getZ() - (z2 - z1) / 2)
+        tight = self.root.get_tight_bounds()
+        if tight is None:
+            # 几何还没生成，直接跳过
+            return
+
+        (_, _, z1), (_, _, z2) = tight
+        self.root.set_pos(
+            -self.logical_w / 2,
+            -self.logical_h / 2,
+            world.getZ() - (z2 - z1) / 2
+        )
 
     def destroy(self) -> None:
         super().destroy()

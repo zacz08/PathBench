@@ -63,6 +63,7 @@ class Configuration:
     num_dim: int
     map_name: Optional[str]
     algorithm_name: Optional[str]
+    env_updater: Optional[Callable[[Map, int], None]]
 
     def __init__(self) -> None:
         # Simulator settings

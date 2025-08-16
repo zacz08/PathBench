@@ -25,30 +25,130 @@ convert_classes = {
 }
 names = ("structures.Point", "structures.Size", "algorithms.configuration.maps.dense_map.DenseMap")
 
-def recursive_replace_loaded_objects(obj, depth=3):
-    cls_name = obj.__class__.__qualname__
-    if cls_name in convert_classes:
-        print(f"Replacing object {cls_name}")
-        return convert_classes[cls_name](obj)
+def recursive_replace_loaded_objects(obj, depth: int = 3):
+    """
+    Safely walk loaded objects and replace legacy types.
+    - Skip numpy/torch arrays and primitives
+    - Recurse into dict/list/tuple/set
+    - For generic objects, only attempt safe setattr; skip read-only / dangerous attrs
+    - Preserve convert_classes behavior
+    """
+    # ---- fast returns / safety ----
+    if depth <= 0:
+        return obj
 
+    import numpy as np
+    try:
+        import torch  # optional
+    except Exception:
+        torch = None
+
+    def _is_primitive(x):
+        return isinstance(x, (int, float, bool, str, bytes, type(None)))
+
+    def _is_np(x):
+        return isinstance(x, (np.ndarray, np.generic))
+
+    def _is_torch(x):
+        return torch is not None and isinstance(x, torch.Tensor)
+
+    # primitives / arrays: do not descend
+    if _is_primitive(obj) or _is_np(obj) or _is_torch(obj):
+        return obj
+
+    # ---- convert_classes at object-level (preserve original behavior) ----
+    try:
+        cls_name = obj.__class__.__qualname__
+    except Exception:
+        cls_name = None
+
+    try:
+        if cls_name and cls_name in convert_classes:
+            return convert_classes[cls_name](obj)
+    except Exception:
+        # if conversion fails, fall back to original object
+        return obj
+
+    # ---- containers ----
+    if isinstance(obj, dict):
+        for k, v in list(obj.items()):
+            obj[k] = recursive_replace_loaded_objects(v, depth - 1)
+        return obj
+
+    if isinstance(obj, list):
+        for i in range(len(obj)):
+            obj[i] = recursive_replace_loaded_objects(obj[i], depth - 1)
+        return obj
+
+    if isinstance(obj, tuple):
+        return tuple(recursive_replace_loaded_objects(v, depth - 1) for v in obj)
+
+    if isinstance(obj, set):
+        # sets are unordered; rebuild
+        return set(recursive_replace_loaded_objects(v, depth - 1) for v in obj)
+
+    # ---- generic object: walk safe attributes ----
+    # common read-only / dangerous attrs to skip
+    skip_attrs = {
+        # numpy-ish / array-ish
+        "dtype", "shape", "strides", "size", "ndim", "itemsize", "nbytes", "base",
+        "ctypes", "flags", "flat", "T", "real", "imag",
+        # torch-ish
+        "grad", "grad_fn", "data",
+        # common meta
+        "__dict__", "__weakref__", "__slots__", "__class__", "__module__",
+    }
+
+    # iterate attributes defensively
     for attribute in dir(obj):
         if attribute.startswith("__") and attribute.endswith("__"):
             continue
-        attr = getattr(obj, attribute)
-        if attr.__class__.__module__ == "builtins":
+        if attribute in skip_attrs:
             continue
-        cls_name = attr.__class__.__qualname__
-        if cls_name in convert_classes:
-            print("Replacing object attribute")
-            print(f"Before: {getattr(obj, attribute)}")
-            setattr(obj, attribute, convert_classes[cls_name](getattr(obj, attribute)))
-            print(f"After: {getattr(obj, attribute)}")
-        elif depth > 0:
-            print(f"Recursing into attr {attribute}")
-            try:
-                setattr(obj, attribute, recursive_replace_loaded_objects(getattr(obj, attribute), depth - 1))
-            except AttributeError:
-                pass
+
+        # get current value
+        try:
+            attr_val = getattr(obj, attribute)
+        except Exception:
+            continue
+
+        # builtins module values: skip (cheap heuristic from original code)
+        try:
+            if getattr(attr_val.__class__, "__module__", "") == "builtins":
+                continue
+        except Exception:
+            pass
+
+        # class-level convert for attribute
+        try:
+            attr_cls_name = getattr(attr_val.__class__, "__qualname__", None)
+            if attr_cls_name and attr_cls_name in convert_classes:
+                try:
+                    new_val = convert_classes[attr_cls_name](attr_val)
+                    try:
+                        setattr(obj, attribute, new_val)
+                    except Exception:
+                        pass
+                    attr_val = new_val  # continue processing new value below
+                except Exception:
+                    # conversion failed; keep old value
+                    pass
+        except Exception:
+            pass
+
+        # recurse
+        try:
+            new_val = recursive_replace_loaded_objects(attr_val, depth - 1)
+        except Exception:
+            continue
+
+        # write back if possible
+        try:
+            setattr(obj, attribute, new_val)
+        except Exception:
+            # read-only or descriptor; ignore
+            pass
+
     return obj
 
 def load(fname):
